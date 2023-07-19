@@ -19,11 +19,11 @@ def create_tables():
             fase_lunar VARCHAR(30) not null,
             info_date timestamp not null);
             """
-    # conn = psycopg2.connect(os.getenv["redshift_string_connection"])
-    # cur = conn.cursor()
-    # cur.execute(create_table)
-    # conn.commit()
-    # conn.close()
+    conn = psycopg2.connect(os.getenv["redshift_string_connection"])
+    cur = conn.cursor()
+    cur.execute(create_table)
+    conn.commit()
+    conn.close()
 
 
 def weather_info(city):
