@@ -3,6 +3,9 @@ import pandas as pd
 from datetime import datetime
 
 def create_tables():
+    """
+    Crea la tabla en la base de datos en caso de que no exista
+    """
     create_table = """
             CREATE TABLE IF NOT EXISTS arturomontesdeoca4892_coderhouse.clima_mexico
             (id_estado VARCHAR(5) NOT NULL PRIMARY KEY,
@@ -27,6 +30,15 @@ def create_tables():
 
 
 def weather_info(city):
+    """
+    Extrae la informacion de los datos de la ciudad establcida
+
+    args:
+        city (str) : Ciudad objetio para extraer datos climaticos del momento
+    
+    return:
+        result (dict) : Contiene la información climatica de la ciudad establecida
+    """
     url = f"https://es.wttr.in/{city}?format=j1"
     response = requests.get(url)
     if response.status_code == 200:
@@ -49,6 +61,9 @@ def weather_info(city):
         print(f'Error al conectar con la API. Código de error: {response.status_code}')
 
 def main():
+    """
+    Funcion principal que obtiene la informacion climatica de todos los estados de México
+    """
     estados_mexico = [
         ("AGS", "Aguascalientes"),
         ("BC", "Baja California"),
@@ -86,17 +101,39 @@ def main():
 
     all_date = []
 
+    # Se obtiene la información de ada estado y se agrega a la lista all_dates
     for estado in estados_mexico:
         info = weather_info(estado[1])
         all_info = estado + info
         all_date.append(all_info)
 
+    # Se construye el dataframe y se agrega la columna info_date con la fecha del momento de ejecución
     df = pd.DataFrame(all_date, columns=["id_estado", "nombre", "temperatura", "uv_index", "prob_precipitacion", "humedad", "velocidad_viento_Kmph", "direccion_viento", "descripcion", "zona_cercana", "iluminacion_lunar", "fase_lunar"])
     date_str = datetime.now().strftime("%Y-%m-%d %X")
-
     df["info_date"] = date_str
-    print(df)
-    return df
+    df = df.fillna(" ", inplace=True)
+    df = df.drop_duplicates(inplace=True)
+
+
+    # Se establace la conexión a la base de datos
+    conn = psycopg2.connect(os.getenv["redshift_string_connection"])
+    # Se convierte el dataframe a una lista de tuplas donde cada una de ellas contiene los valores de cada registro ej. = ('AGS', 'Aguascalientes', 29, 7, 0., 29., 19, 'E', 'Parcialmente nublado', 'El Taray', 99., '99', '2023-08-01 14:12:58')
+    records = df.to_records(index=False)
+    data_tuples = list(records)
+    # Se obtiene la lista de columnas
+    cols = ', '.join(df.columns)
+    cursor = conn.cursor()
+
+    # Se itera sobre cada registro y se construye un query para insertar el registro en la base de datos
+    for record in data_tuples:
+        query = f"INSERT INTO clima_mexico ({cols}) VALUES {record}"
+        cursor.execute(query, data_tuples)
+        conn.commit()
+
+    print("Dataframe insertado en la base de datos")
+    # Cerrar el cursor y la conexión
+    conn.close()
+    cursor.close()
 
 
 if __name__ == '__main__':
